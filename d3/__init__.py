@@ -1,8 +1,7 @@
 from typing import List
 
-from oui import mcd, B1530Lib
-from oui.mcd import State
-
+from d3 import mcd, B1530Lib
+from d3.mcd import State #, add other usefull import here
 
 ###############################
 # WGFMU Configuration Constants
@@ -12,11 +11,12 @@ from oui.mcd import State
 print_ports = mcd.MCDriver.print_ports
 print_visa_dev = B1530Lib.print_devices
 
-##########################
-# class NewChipDriver
-class NewChipDriver:
+######################
+# class Design3Driver
+######################
+class Design3Driver:
 	"""
-		New Chip Driver (TODO: the name)
+		Design3 Driver
 
 		...
 		Attributes
@@ -26,6 +26,9 @@ class NewChipDriver:
 
 		_b1530: B1530Lib.B1530
 			The driver used to control the B1530
+
+		_last_wgfu_config: int
+			Stores the last operation performed, not to reconfigure everything if it is the same (see 'WGFMU Configuration Constants')
 	"""
 
 	def __init__(self, uc_pid = mcd.MCDriver.DEFAULT_PID, visa_addr = B1530Lib.B1530.DEFAULT_ADDR):
@@ -54,9 +57,9 @@ class NewChipDriver:
 		"""
 		Resets the state of the driver, to run after exception catching for example.
 		"""
-		self._mcd.flush_input()
-		self._mcd.ack_mode(mcd.ACK_ALL)
-		self._mcd.set_cs(mcd.CS.CARAC_EN, State.SET) # Enable CARAC MODE
+		self._mcd.flush_input() # Flush any remaning inputs stuck in the buffer
+		self._mcd.ack_mode(mcd.ACK_ALL) # Enable ACK for every procedure commands
+		self._last_wgfu_config = -1 # Initially, no WGFMU Configuration
 
 	##### µC-RELATED METHODS #####
 	# EMPTY
@@ -77,15 +80,17 @@ class NewChipDriver:
 			return
 		
 		self._last_wgfu_config = config
-
-		#self._b1530.reset_configuration()
 		chan = self._b1530.chan
 
-		# TODO: make this a list/dict?
-		self._b1530.reset_configuration()
+		# self._b1530.reset_configuration() # If required (e.g. when different channels wave/meas is used for different configurations)
+
+		##### HERE #####
+
+		################
+
 		self._b1530.configure()
 
-	##### HIGH-LEVEL MEMRISTOR MANIPULATION METHODS #####
+	##### HIGH-LEVEL ARRAY MANIPULATION METHODS #####
 	# Empty
 		
 

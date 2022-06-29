@@ -6,10 +6,9 @@ from enum import auto as en_auto
 from functools import reduce
 from operator import or_
 
-###################
-# C enums and flags
-
+###########################
 # Shift Register state code
+###########################
 class State(IntEnum):
 	SET   = 0x01
 	RESET = 0x00
@@ -21,6 +20,10 @@ class State(IntEnum):
 			return int(self) == 0
 		
 		raise ValueError(f"Invalid comparaison between a state and an unknown value '{other}'")
+
+###################
+# C enums and flags
+###################
 
 # Command list
 class CMD(IntEnum):
@@ -54,22 +57,24 @@ class CS(IntEnum):
 CS_LIST  = list(CS.__members__.values())
 CS_COUNT = len(CS_LIST)
 
+### END C enums and flags ###
+
 #################
 # Utils function
+#################
 def as_int(b: bytes) -> int:
 	return int.from_bytes(b, 'little')
 
 def as_bytes(i: int) -> bytes:
 	return i.to_bytes(max((i.bit_length() + 7) // 8, 1), 'little')
 
-#################
+##############
 # Driver class
+##############
 class MCDriver:
 	"""
 	µc driver for the Awesome Array Python Driver.
 
-	
-	...
 	Attributes
 	-----------
 	ser : serial.Serial
