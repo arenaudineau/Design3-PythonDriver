@@ -25,7 +25,32 @@ class State(IntEnum):
 # C enums and flags
 ###################
 
-# Command list
+class ACK(IntFlag):
+	NONE            = 0x00
+	WRITE_CS        = 1 << 0
+	SET_ADR         = 1 << 1
+	WRITE_MEMRISTOR = 1 << 2
+	WRITE_CELL      = 1 << 3
+	FILL_BNN        = 1 << 4
+	FILL_CNN        = 1 << 5
+	CLK             = 1 << 6
+
+ACK_LIST = list(ACK.__members__.values())
+ACK_ALL = reduce(or_, ACK_LIST)
+
+class CS(IntEnum):
+	BL    = 0
+	BLEN  = en_auto()
+	WL    = en_auto()
+	SL    = en_auto()
+	EAD   = en_auto()
+	IT_IN = en_auto()
+	LK    = en_auto()
+	LK2   = en_auto()
+
+CS_LIST = list(CS.__members__.values())
+CS_COUNT = len(CS_LIST)
+
 class CMD(IntEnum):
 	WRITE_CS        = 0
 	SET_ADR         = en_auto()
@@ -41,37 +66,8 @@ class CMD(IntEnum):
 	DEBUG_ECHO      = en_auto()
 	DEBUG_LED       = en_auto()
 
-CMD_LIST  = list(CMD.__members__.values())
+CMD_LIST = list(CMD.__members__.values())
 CMD_COUNT = len(CMD_LIST)
-
-# Acknowledge Mode Flags
-class ACK(IntFlag):
-	NONE            = 0x00
-	WRITE_CS        = en_auto()
-	SET_ADR         = en_auto()
-	WRITE_MEMRISTOR = en_auto()
-	WRITE_CELL      = en_auto()
-	FILL_BNN        = en_auto()
-	FILL_CNN        = en_auto()
-	CLK             = en_auto()
-	#CLK2            = en_auto()
-
-ACK_LIST = list(ACK.__members__.values())
-ACK_ALL = reduce(or_, ACK_LIST)
-
-# Control Signals
-class CS(IntEnum):
-	CBL    = 0
-	CBLEN  = en_auto()
-	CWL    = en_auto()
-	CSL    = en_auto()
-	READ   = en_auto()
-	BIT_IN = en_auto()
-	CLK    = en_auto()
-	CLK2   = en_auto()
-	
-CS_LIST  = list(CS.__members__.values())
-CS_COUNT = len(CS_LIST)
 
 ### END C enums and flags ###
 

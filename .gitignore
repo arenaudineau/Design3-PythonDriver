@@ -12,3 +12,6 @@ dist/
 
 # This folder contains proprietary code
 **/extlibs/B1530Driver/B1530*
+
+# Template code
+utils/
