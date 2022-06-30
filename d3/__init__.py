@@ -3,6 +3,8 @@ from typing import List
 from d3 import mcd, B1530Lib
 from d3.mcd import State #, add other usefull import here
 
+import functools as ft
+
 ###############################
 # WGFMU Configuration Constants
 # Empty
@@ -91,7 +93,41 @@ class Design3Driver:
 		self._b1530.configure()
 
 	##### HIGH-LEVEL ARRAY MANIPULATION METHODS #####
-	# Empty
+	@staticmethod
+	def ternary_to_repr(t: int):
+		return {
+			 1: 0b10,
+			 0: 0b00,
+			-1: 0b01,
+		}[t]
+
+	@staticmethod
+	def binary_to_repr(b: int):
+		return {
+			 1: 0b1,
+			-1: 0b0,
+			 0: 0b0, # == mcd.State.RESET
+		}[b]
+
+	def fill(self, values):
+		"""
+		Fills in the array
+		
+		Parameters:
+			values: List[List[int]]
+			Details:
+				2D array of '1', '-1' or '0'
+				[[col0, col1, ..., col7], # row 0
+				[col0, col1, ..., col7], # row 1
+					...,
+				[col0, col1, ..., col7]] # row 7
+		"""
+		values = list(ft.reduce(
+				lambda reduced_rows, rows: reduced_rows + list(map(self.ternary_to_repr, rows)),
+				values,
+				[],
+		))
+		self._mcd.fill(values)
 		
 
 
