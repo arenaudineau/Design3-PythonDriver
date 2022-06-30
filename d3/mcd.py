@@ -37,14 +37,14 @@ ACK_LIST = list(ACK.__members__.values())
 ACK_ALL = reduce(or_, ACK_LIST)
 
 class CS(IntEnum):
-	BL    = 0
-	BLEN  = en_auto()
-	WL    = en_auto()
-	SL    = en_auto()
-	EAD   = en_auto()
-	IT_IN = en_auto()
-	LK    = en_auto()
-	LK2   = en_auto()
+	CBL    = 0
+	CBLEN  = en_auto()
+	CWL    = en_auto()
+	CSL    = en_auto()
+	READ   = en_auto()
+	BIT_IN = en_auto()
+	CLK    = en_auto()
+	CLK2   = en_auto()
 
 CS_LIST = list(CS.__members__.values())
 CS_COUNT = len(CS_LIST)
