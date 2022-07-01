@@ -62,6 +62,7 @@ class Design3Driver:
 		self._mcd.flush_input() # Flush any remaning inputs stuck in the buffer
 		self._mcd.ack_mode(mcd.ACK_ALL) # Enable ACK for every procedure commands
 		self._last_wgfu_config = -1 # Initially, no WGFMU Configuration
+		self.discharge_delay = None
 
 	##### µC-RELATED METHODS #####
 	# EMPTY
@@ -78,6 +79,13 @@ class Design3Driver:
 		csl    = chan[3]
 		clk    = chan[4]
 
+		self.discharge_delay = self.discharge_delay or 0.3e-6
+
+		bit_in.name = 'bit_in'
+		cwl.name    = 'cwl'
+		csl.name    = 'csl'
+		clk.name    = 'clk'
+
 		bit_in.wave = B1530Lib.Pulse(
 			voltage  = 1,
 			interval = 1e-6,
@@ -87,11 +95,13 @@ class Design3Driver:
 
 		cwl.wave = bit_in.wave.centered_on(
 			voltage  = 1,
-			length   = 1e-6,  
+			length   = 1e-6,
 		)
 
+		cwl.wave.wait_end += self.discharge_delay
+
 		csl.wave = cwl.wave.reduced_length(
-			length   = 0.8e-6,
+			length   = cwl.wave.length - self.discharge_delay,
 			voltage = 1,
 		)
 
@@ -99,16 +109,18 @@ class Design3Driver:
 			voltage  = 1,
 			interval = 1e-7,
 			edges    = 1e-7,
-			length = 5e-5, 
+			length   = cwl.wave.interval / 5, 
 		)
-
-		discharge_delay = 1e-6
-		clk.wave.lead = sum(csl.wave.get_time_pattern()[:4]) + discharge_delay
+		
+		clk.wave.wait_begin = cwl.wave.get_total_duration() # Clk only when cwl has been reset
+		clk.wave.wait_end   = 1e-8
 
 		# Repeat once control signals, but this time with bit_in at GND 
 		cwl.wave.repeat(1)
 		csl.wave.repeat(1)
-		clk.wave.repeat(1)
+		clk.wave.append(
+			clk.wave.copy(wait_begin = clk.wave.wait_begin - clk.wave.length)
+		)
 
 		self._b1530.configure()
 
