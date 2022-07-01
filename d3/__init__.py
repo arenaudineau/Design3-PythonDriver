@@ -7,7 +7,7 @@ import functools as ft
 
 ###############################
 # WGFMU Configuration Constants
-# Empty
+WGFMU_CONFIG_SENSE = 0
 
 # Utils export from mcd
 print_ports = mcd.MCDriver.print_ports
@@ -67,28 +67,48 @@ class Design3Driver:
 	# EMPTY
 
 	##### B1530-RELATED METHODS #####
-	def configure_wgfmu(self, config):
+	def configure_wgfmu_default(self):
 		"""
-		Configures the WGFMUs with the configuration provided
-		
-		Parameters:
-			config: The configuration to apply:
-				* Empty
-				
-		Details:
-			b1530.chans
+		Configures the WGFMUs by default
 		"""
-		if self._last_wgfu_config == config:
-			return
-		
-		self._last_wgfu_config = config
 		chan = self._b1530.chan
 
-		# self._b1530.reset_configuration() # If required (e.g. when different channels wave/meas is used for different configurations)
+		bit_in = chan[1]
+		cwl    = chan[2]
+		csl    = chan[3]
+		clk    = chan[4]
 
-		##### HERE #####
+		bit_in.wave = B1530Lib.Pulse(
+			voltage  = 1,
+			interval = 1e-6,
+			edges    = 1e-7,
+			length   = 2e-6,
+		)
 
-		################
+		cwl.wave = bit_in.wave.centered_on(
+			voltage  = 1,
+			length   = 1e-6,  
+		)
+
+		csl.wave = cwl.wave.changed_length(
+			length   = 0.8e-6,
+			voltage = 1,
+		)
+
+		clk.wave = B1530Lib.Pulse(
+			voltage  = 1,
+			interval = 1e-7,
+			edges    = 1e-7,
+			length = 5e-5, 
+		)
+
+		discharge_delay = 1e-6
+		clk.wave.lead = sum(csl.wave.get_time_pattern()[:4]) + discharge_delay
+
+		# Repeat once control signals, but this time with bit_in at GND 
+		cwl.wave.repeat(1)
+		csl.wave.repeat(1)
+		clk.wave.repeat(1)
 
 		self._b1530.configure()
 
@@ -118,16 +138,32 @@ class Design3Driver:
 			Details:
 				2D array of '1', '-1' or '0'
 				[[col0, col1, ..., col7], # row 0
-				[col0, col1, ..., col7], # row 1
+				[col0, col1, ..., col7],  # row 1
 					...,
-				[col0, col1, ..., col7]] # row 7
+				[col0, col1, ..., col7]]  # row 7
 		"""
+		if len(values) != 8 and len(values[0]) != 8:
+			raise ValueError("Expected 8x8 array")
+		
 		values = list(ft.reduce(
-				lambda reduced_rows, rows: reduced_rows + list(map(self.ternary_to_repr, rows)),
+				lambda reduced_rows, rows:
+					reduced_rows + list(map(self.ternary_to_repr, rows)),
 				values,
 				[],
 		))
-		self._mcd.fill(values)
-		
+		self._mcd.fill(*values)
 
+	def sense(self):
+		"""
+		Reads out the array
 
+		Returns:
+			values: List[List[int]]
+			Details:
+				2D array of integers '0b00', '0b10' or '0b01'
+				[[col0, col1, ..., col7], # row 0
+				[col0, col1, ..., col7],  # row 1
+					...,
+				[col0, col1, ..., col7]]  # row 7
+		"""
+		return self._mcd.sense()
