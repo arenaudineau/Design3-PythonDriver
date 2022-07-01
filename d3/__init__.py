@@ -90,7 +90,7 @@ class Design3Driver:
 			length   = 1e-6,  
 		)
 
-		csl.wave = cwl.wave.changed_length(
+		csl.wave = cwl.wave.reduced_length(
 			length   = 0.8e-6,
 			voltage = 1,
 		)
