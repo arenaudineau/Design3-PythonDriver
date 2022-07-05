@@ -187,9 +187,12 @@ class Design3Driver:
 		))
 		self._mcd.fill(*values)
 
-	def sense(self):
+	def sense(self, measure_pulses=False):
 		"""
 		Reads out the array
+
+		Parameters:
+			measure_pulses: bool : Make a B1530 measurement of the pulses applied [False by default]
 
 		Returns:
 			values: List[List[int]]
@@ -200,7 +203,7 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 		"""
-		self.configure_wgfmu_default()
+		self.configure_wgfmu_default(measure_pulses)
 		self._b1530.exec()
 		
 		return self._mcd.sense()
