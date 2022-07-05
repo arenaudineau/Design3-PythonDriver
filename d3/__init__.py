@@ -62,15 +62,19 @@ class Design3Driver:
 		self._mcd.flush_input() # Flush any remaning inputs stuck in the buffer
 		self._mcd.ack_mode(mcd.ACK_ALL) # Enable ACK for every procedure commands
 		self._last_wgfu_config = -1 # Initially, no WGFMU Configuration
-		self.discharge_delay = None
+		self.discharge_time = None
+		self.precharge_time = None
 
 	##### µC-RELATED METHODS #####
 	# EMPTY
 
 	##### B1530-RELATED METHODS #####
-	def configure_wgfmu_default(self):
+	def configure_wgfmu_default(self, measure = False):
 		"""
 		Configures the WGFMUs by default
+
+		Parameters:
+			measure: bool : Measure the signals generated
 		"""
 		chan = self._b1530.chan
 
@@ -79,7 +83,8 @@ class Design3Driver:
 		csl    = chan[3]
 		clk    = chan[4]
 
-		self.discharge_delay = self.discharge_delay or 0.3e-6
+		self.precharge_time = self.precharge_time   or 1e-6
+		self.discharge_time = self.discharge_time or 0.5e-6
 
 		bit_in.name = 'bit_in'
 		cwl.name    = 'cwl'
@@ -88,39 +93,61 @@ class Design3Driver:
 
 		bit_in.wave = B1530Lib.Pulse(
 			voltage  = 1,
-			interval = 1e-6,
+			interval = 1e-7,
 			edges    = 1e-7,
-			length   = 2e-6,
+			length   = 1.5 * (self.precharge_time + self.discharge_time) 
 		)
 
 		cwl.wave = bit_in.wave.centered_on(
 			voltage  = 1,
-			length   = 1e-6,
+			length   = self.precharge_time + self.discharge_time,
+			wait_end = 0,
 		)
 
-		cwl.wave.wait_end += self.discharge_delay
-
-		csl.wave = cwl.wave.reduced_length(
-			length   = cwl.wave.length - self.discharge_delay,
-			voltage = 1,
+		csl.wave = cwl.wave.copy(
+			voltage  = 1,
+			length   = self.precharge_time,
+			wait_end = self.discharge_time,
 		)
 
 		clk.wave = B1530Lib.Pulse(
-			voltage  = 1,
-			interval = 1e-7,
-			edges    = 1e-7,
-			length   = cwl.wave.interval / 5, 
+			voltage    = 1,
+			edges      = 1e-7,
+			length     = cwl.wave.length / 5, 
+			wait_begin = cwl.wave.get_total_duration(),
+			wait_end   = 0,
 		)
 		
-		clk.wave.wait_begin = cwl.wave.get_total_duration() # Clk only when cwl has been reset
-		clk.wave.wait_end   = 1e-8
-
 		# Repeat once control signals, but this time with bit_in at GND 
-		cwl.wave.repeat(1)
-		csl.wave.repeat(1)
-		clk.wave.append(
-			clk.wave.copy(wait_begin = clk.wave.wait_begin - clk.wave.length)
+		cwl.wave.append(
+			cwl.wave.copy(
+				wait_begin = cwl.wave.wait_begin + clk.wave.get_total_duration(),
+			)
 		)
+		csl.wave.append(
+			csl.wave.copy(
+				wait_begin = csl.wave.wait_begin + clk.wave.get_total_duration(),
+			)
+		)
+		clk.wave.append(
+			clk.wave.copy(
+				wait_begin = cwl.wave.get_total_duration() - clk.wave.get_total_duration(),
+				wait_end   = 1e-7,
+			)
+		)
+
+		bit_in.wave.append_wait_end(new_total_duration= clk.wave.get_total_duration())
+		cwl.wave.append_wait_end(new_total_duration=    clk.wave.get_total_duration())
+		csl.wave.append_wait_end(new_total_duration=    clk.wave.get_total_duration())
+
+		if measure:
+			for c in self._b1530.chan.values():
+				c.measure_self(
+					average_time=1e-8,
+					sample_interval=1e-8,
+					ignore_edges=False,
+					ignore_settling=False,
+				)
 
 		self._b1530.configure()
 
