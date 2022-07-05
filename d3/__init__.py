@@ -1,7 +1,6 @@
-from typing import List
-
-from d3 import mcd, B1530Lib
+from d3 import mcd
 from d3.mcd import State #, add other usefull import here
+import B1530Lib
 
 import functools as ft
 
