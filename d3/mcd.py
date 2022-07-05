@@ -30,9 +30,10 @@ class ACK(IntFlag):
 	NONE     = 0x00
 	WRITE_CS = 1 << 0
 	SET_ADR  = 1 << 1
-	FILL     = 1 << 2
-	CLK      = 1 << 3
-	CLK2     = 1 << 4
+	SET      = 1 << 2
+	RESET    = 1 << 3
+	CLK      = 1 << 4
+	CLK2     = 1 << 5
 
 ACK_LIST = list(ACK.__members__.values())
 ACK_ALL = reduce(or_, ACK_LIST)
@@ -53,7 +54,8 @@ CS_COUNT = len(CS_LIST)
 class CMD(IntEnum):
 	WRITE_CS   = 0
 	SET_ADR    = en_auto()
-	FILL       = en_auto()
+	SET        = en_auto()
+	RESET      = en_auto()
 	SENSE      = en_auto()
 	CLK        = en_auto()
 	CLK2       = en_auto()
