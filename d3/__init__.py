@@ -63,6 +63,7 @@ class Design3Driver:
 		self._last_wgfu_config = -1 # Initially, no WGFMU Configuration
 		self.discharge_time = None
 		self.precharge_time = None
+		self.interval       = None
 
 	##### µC-RELATED METHODS #####
 	# EMPTY
@@ -75,15 +76,15 @@ class Design3Driver:
 		Parameters:
 			measure: bool : Measure the signals generated
 		"""
+		if self.discharge_time is None or self.precharge_time is None or self.interval is None:
+			raise ValueError("dischared_time, precharge_time or interval not set")
+
 		chan = self._b1530.chan
 
 		bit_in = chan[1]
 		cwl    = chan[2]
 		csl    = chan[3]
 		clk    = chan[4]
-
-		self.precharge_time = self.precharge_time   or 1e-6
-		self.discharge_time = self.discharge_time or 0.5e-6
 
 		bit_in.name = 'bit_in'
 		cwl.name    = 'cwl'
@@ -94,7 +95,7 @@ class Design3Driver:
 			voltage  = 1,
 			interval = 1e-7,
 			edges    = 1e-7,
-			length   = 1.5 * (self.precharge_time + self.discharge_time) 
+			length   = 1.2 * (self.precharge_time + self.discharge_time) 
 		)
 
 		cwl.wave = bit_in.wave.centered_on(
@@ -118,32 +119,27 @@ class Design3Driver:
 		)
 		
 		# Repeat once control signals, but this time with bit_in at GND 
-		cwl.wave.append(
-			cwl.wave.copy(
-				wait_begin = cwl.wave.wait_begin + clk.wave.get_total_duration(),
-			)
-		)
-		csl.wave.append(
-			csl.wave.copy(
-				wait_begin = csl.wave.wait_begin + clk.wave.get_total_duration(),
-			)
-		)
-		clk.wave.append(
-			clk.wave.copy(
-				wait_begin = cwl.wave.get_total_duration() - clk.wave.get_total_duration(),
-				wait_end   = 1e-7,
-			)
-		)
+		interval = max(0, self.interval - cwl.wave.wait_begin)
+		cwl.wave.append_wait_end(new_total_duration = clk.wave.get_total_duration() + interval)
+		csl.wave.append_wait_end(new_total_duration = clk.wave.get_total_duration() + interval)
+		clk.wave.append_wait_end(new_total_duration = clk.wave.get_total_duration() + interval)
 
-		bit_in.wave.append_wait_end(new_total_duration= clk.wave.get_total_duration())
-		cwl.wave.append_wait_end(new_total_duration=    clk.wave.get_total_duration())
-		csl.wave.append_wait_end(new_total_duration=    clk.wave.get_total_duration())
+		cwl.wave.repeat(1)
+		csl.wave.repeat(1)
+		clk.wave.repeat(1)
+		
+		bit_in.wave.append_wait_end(new_total_duration = clk.wave.get_total_duration())
+
+		for c in chan.values():
+			c.wave \
+				.repeat(8 * 8 - 1) \
+				.prepend_wait_begin(wait_time = self.interval)
 
 		if measure:
 			for c in self._b1530.chan.values():
 				c.measure_self(
-					average_time=1e-8,
-					sample_interval=1e-8,
+					average_time=0.1e-7,
+					sample_interval=0.1e-7,
 					ignore_edges=False,
 					ignore_settling=False,
 				)
@@ -204,4 +200,7 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 		"""
+		self.configure_wgfmu_default()
+		self._b1530.exec()
+		
 		return self._mcd.sense()
