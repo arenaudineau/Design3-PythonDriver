@@ -1,6 +1,7 @@
 from d3 import mcd
 from d3.mcd import State #, add other usefull import here
 import B1530Lib
+import lab.keith2230GDriver as kdriver
 
 import functools as ft
 from typing import List
@@ -29,31 +30,58 @@ class Design3Driver:
 		_b1530: B1530Lib.B1530
 			The driver used to control the B1530
 
+		_kdriver: kdriver.Keith2230G
+			The driver used to control the 2230G
+
 		_last_wgfu_config: int
 			Stores the last operation performed, not to reconfigure everything if it is the same (see 'WGFMU Configuration Constants')
 	"""
 
-	def __init__(self, uc_pid = mcd.MCDriver.DEFAULT_PID, visa_addr = B1530Lib.B1530.DEFAULT_ADDR):
+	K2230G_DEFAULT_ADDR = "GPIB::1::INSTR"
+
+	def __init__(self, uc_pid = mcd.MCDriver.DEFAULT_PID, b1530_addr = B1530Lib.B1530.DEFAULT_ADDR, k2230g_addr = K2230G_DEFAULT_ADDR):
 		"""
 		Creates the driver.
 
 		Details:
-			It will search for the µc using the PID value 'DEFAULT_PID' or the one provided in argument.
-			Takes the first found if many have the same PID.
+			* It will search for the µc using the PID value 'DEFAULT_PID' or the one provided in argument.
+			Takes the first found if several have the same PID.
+			* It will search for the B1530 using the visa address 'B1530.DEFAULT_ADDR' or the one provided in argument.
+			* It will search for the K2230G using the visa address 'K2230G_DEFAULT_ADDR' or the one provided in argument.
 			RAISE Exception if not found.
 
 		Arguments:
 			pid: optional, the pid to search for.
+			b1530_addr: optionnal, the visa addr to search for the B1530.
+			k2230g_addr: optionnal, the visa addr to search for the Keithley 2230G.
 		"""
 		self._mcd = mcd.MCDriver(uc_pid)
 
 		try:
-			self._b1530 = B1530Lib.B1530(addr=visa_addr)
+			self._b1530 = B1530Lib.B1530(addr=b1530_addr)
 		except Exception as e:
 			self._mcd.ser.close()
 			raise e
+
+		self._kdriver = kdriver.Keith2230G(adress=k2230g_addr, silence_initial_measurements=True)
+		self.k2230g_chans = {
+			'VDD':  'CH1',
+			'VDDC': 'CH2',
+			'VDDR': 'CH3',
+		}
 		
 		self.reset_state()
+
+	def __del__(self):
+		# Disable all three channels of the DC Power Supply
+		self._kdriver.set_channel_output(self.k2230g_chans['VDD'],  0)
+		self._kdriver.set_channel_output(self.k2230g_chans['VDDC'], 0)
+		self._kdriver.set_channel_output(self.k2230g_chans['VDDR'], 0)
+		
+		self._kdriver.close()
+
+		del self._b1530
+		del self._mcd
 
 	def reset_state(self):
 		"""
@@ -61,10 +89,18 @@ class Design3Driver:
 		"""
 		self._mcd.flush_input() # Flush any remaning inputs stuck in the buffer
 		self._mcd.ack_mode(mcd.ACK_ALL) # Enable ACK for every procedure commands
+
+		# Enable all three channels of the DC Power Supply
+		self._kdriver.set_channel_output(self.k2230g_chans['VDD'],  1)
+		self._kdriver.set_channel_output(self.k2230g_chans['VDDC'], 1)
+		self._kdriver.set_channel_output(self.k2230g_chans['VDDR'], 1)
+
+		self._kdriver.set_channel_voltage(self.k2230g_chans['VDD'], 1.2) # Or something else
+
 		self._last_wgfu_config = -1 # Initially, no WGFMU Configuration
-		self.discharge_time = None
-		self.precharge_time = None
-		self.interval       = None
+		self.discharge_time    = None
+		self.precharge_time    = None
+		self.interval          = 20e-6
 
 	##### µC-RELATED METHODS #####
 	# EMPTY
@@ -77,6 +113,10 @@ class Design3Driver:
 		Parameters:
 			measure: bool : Measure the signals generated
 		"""
+		if self._last_wgfu_config == (self.precharge_time, self.discharge_time, self.interval):
+			return
+		self._last_wgfu_config = (self.precharge_time, self.discharge_time, self.interval)
+
 		if self.discharge_time is None or self.precharge_time is None or self.interval is None:
 			raise ValueError("dischared_time, precharge_time or interval not set")
 
@@ -95,7 +135,7 @@ class Design3Driver:
 		bit_in.wave = B1530Lib.Pulse(
 			voltage  = 1,
 			interval = 1e-7,
-			edges    = 1e-7,
+			edges    = 1e-8,
 			length   = 1.2 * (self.precharge_time + self.discharge_time) 
 		)
 
@@ -112,9 +152,9 @@ class Design3Driver:
 		)
 
 		clk.wave = B1530Lib.Pulse(
-			voltage    = 1,
-			edges      = 1e-7,
-			length     = cwl.wave.length / 5, 
+			voltage    = 3.3,
+			edges      = 1e-8,
+			length     = 15e-6,
 			wait_begin = cwl.wave.get_total_duration(),
 			wait_end   = 0,
 		)
@@ -134,7 +174,7 @@ class Design3Driver:
 		for c in chan.values():
 			c.wave \
 				.repeat(8 * 8 - 1) \
-				.prepend_wait_begin(wait_time = self.interval)
+				.prepend_wait_begin(wait_time = 0.05)
 
 		if measure:
 			for c in self._b1530.chan.values():
@@ -190,7 +230,8 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 		"""
-		#TODO: Control 2230G
+		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDR'], 3)   # WL voltage
+		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDC'], 3.5) # SL voltage
 		self._mcd.set(*self.flatten_array(values))
 
 	def reset(self, values):
@@ -210,7 +251,8 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 		"""
-		#TODO: Control 2230G
+		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDR'], 5)   # WL voltage
+		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDC'], 4.5) # BL voltage
 		self._mcd.reset(*self.flatten_array(values))
 
 	def form(self, values):
@@ -230,7 +272,8 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 		"""
-		#TODO: Control 2230G
+		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDR'], 3) # WL voltage
+		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDC'], 3) # SL voltage
 		self._mcd.set(*self.flatten_array(values)) # FORM has the same control signals than SET
 
 	def fill(self, values, otp=False):
@@ -296,7 +339,10 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 		"""
+		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDR'], 5) # WL voltage
+		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDC'], 3) # SL/BL voltage; NO IDEA WHAT VALUE SHOULD BE HERE;
+
 		self.configure_wgfmu_default(measure_pulses)
-		self._b1530.exec()
+		self._b1530.exec(wait_until_completed = False)
 		
 		return self._mcd.sense()
