@@ -3,6 +3,8 @@ from d3.mcd import State #, add other usefull import here
 import B1530Lib
 import lab.keith2230GDriver as kdriver
 
+import numpy as np
+
 import functools as ft
 from typing import List
 
@@ -95,7 +97,7 @@ class Design3Driver:
 		self._kdriver.set_channel_output(self.k2230g_chans['VDDC'], 1)
 		self._kdriver.set_channel_output(self.k2230g_chans['VDDR'], 1)
 
-		self._kdriver.set_channel_voltage(self.k2230g_chans['VDD'], 1.2) # Or something else
+		self._kdriver.set_channel_voltage(self.k2230g_chans['VDD'], 1.2)
 
 		self._last_wgfu_config = -1 # Initially, no WGFMU Configuration
 		self.discharge_time    = None
@@ -113,12 +115,13 @@ class Design3Driver:
 		Parameters:
 			measure: bool : Measure the signals generated
 		"""
+		# Reconfigure only if the configuration has changed
 		if self._last_wgfu_config == (self.precharge_time, self.discharge_time, self.interval):
 			return
 		self._last_wgfu_config = (self.precharge_time, self.discharge_time, self.interval)
 
-		if self.discharge_time is None or self.precharge_time is None or self.interval is None:
-			raise ValueError("dischared_time, precharge_time or interval not set")
+		if self.discharge_time is None or self.precharge_time is None:
+			raise ValueError("discharge_time or precharge_time not set")
 
 		chan = self._b1530.chan
 
@@ -154,12 +157,12 @@ class Design3Driver:
 		clk.wave = B1530Lib.Pulse(
 			voltage    = 3.3,
 			edges      = 1e-8,
-			length     = 15e-6,
+			length     = 15e-6, # Quite long pulse to let the µc react to the clk pulse
 			wait_begin = cwl.wave.get_total_duration(),
 			wait_end   = 0,
 		)
 		
-		# Repeat once control signals, but this time with bit_in at GND 
+		# Repeat once again control signals, but this time with bit_in at GND 
 		interval = max(0, self.interval - cwl.wave.wait_begin)
 		cwl.wave.append_wait_end(new_total_duration = clk.wave.get_total_duration() + interval)
 		csl.wave.append_wait_end(new_total_duration = clk.wave.get_total_duration() + interval)
@@ -174,7 +177,7 @@ class Design3Driver:
 		for c in chan.values():
 			c.wave \
 				.repeat(8 * 8 - 1) \
-				.prepend_wait_begin(wait_time = 0.05)
+				.prepend_wait_begin(wait_time = 0.05) # Let the µc init
 
 		if measure:
 			for c in self._b1530.chan.values():
@@ -333,16 +336,20 @@ class Design3Driver:
 		Returns:
 			values: List[List[int]]
 			Details:
-				2D array of integers '0b00', '0b10' or '0b01'
+				2D array of integers '0b00', '0b10' or '0b01' (or '0b11' but that shouldn't happen)
 				[[col0, col1, ..., col7], # row 0
 				[col0, col1, ..., col7],  # row 1
 					...,
 				[col0, col1, ..., col7]]  # row 7
 		"""
-		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDR'], 5) # WL voltage
-		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDC'], 3) # SL/BL voltage; NO IDEA WHAT VALUE SHOULD BE HERE;
+		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDR'], 2.5) # WL voltage
+		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDC'], 1.2) # SL/BL voltage
 
 		self.configure_wgfmu_default(measure_pulses)
-		self._b1530.exec(wait_until_completed = False)
+		self._b1530.exec(wait_until_completed = False) # Does not wait for completion because we want to run µc sense at the same time
 		
-		return self._mcd.sense()
+		values = self._mcd.sense()                        # Get array of bytes
+		values = np.array([b for b in values], dtype=int) # Convert array of bytes into array of integers
+		values = values.reshape(8, 8)                     # Shape 1D array of size 64 to 8x8 2D array
+		
+		return values
