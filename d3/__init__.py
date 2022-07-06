@@ -3,6 +3,7 @@ from d3.mcd import State #, add other usefull import here
 import B1530Lib
 
 import functools as ft
+from typing import List
 
 ###############################
 # WGFMU Configuration Constants
@@ -150,20 +151,89 @@ class Design3Driver:
 	@staticmethod
 	def ternary_to_repr(t: int):
 		return {
-			 1: 0b10,
-			 0: 0b00,
-			-1: 0b01,
+			 1: 0b10, # HRS-LRS
+			 0: 0b00, # HRS-HRS
+			-1: 0b01, # LRS-HRS
 		}[t]
 
 	@staticmethod
-	def binary_to_repr(b: int):
-		return {
-			 1: 0b1,
-			-1: 0b0,
-			 0: 0b0, # == mcd.State.RESET
-		}[b]
+	def flatten_array(arr: List[List[int]], m = lambda x: x) -> List[int]:
+		"""
+		Returns a 1D flatten array from a 2D one, with optionally a function to map.
 
-	def fill(self, values):
+		Parameters:
+			arr: List[List[int]] : The 2D array to flatten
+			m: func : The function to map to individual values [identity by default]
+		"""
+		return \
+			list(ft.reduce(
+					lambda reduced_rows, rows:
+						reduced_rows + list(map(m, rows)),
+					arr,
+					[],
+			))
+	
+	def set(self, values: List[List[int]]):
+		"""
+		Sets the selected memristors
+
+		Parameters:
+			values: List[List[int]]
+			Details:
+				2D array of binary values '0bXY'
+					If X = '1', SET R, otherwise do not change R state
+					If Y = '1', SET Rb, otherwise do not change Rb state
+					If XY = '00', do not change the cell state
+				
+				[[col0, col1, ..., col7], # row 0
+				[col0, col1, ..., col7],  # row 1
+					...,
+				[col0, col1, ..., col7]]  # row 7
+		"""
+		#TODO: Control 2230G
+		self._mcd.set(*self.flatten_array(values))
+
+	def reset(self, values):
+		"""
+		Resets the selected memristors
+
+		Parameters:
+			values: List[List[int]]
+			Details:
+				2D array of binary values '0bXY'
+					If X = '1', RESET R, otherwise do not change R state
+					If Y = '1', RESET Rb, otherwise do not change Rb state
+					If XY = '00', do not change the cell state
+				
+				[[col0, col1, ..., col7], # row 0
+				[col0, col1, ..., col7],  # row 1
+					...,
+				[col0, col1, ..., col7]]  # row 7
+		"""
+		#TODO: Control 2230G
+		self._mcd.reset(*self.flatten_array(values))
+
+	def form(self, values):
+		"""
+		Forms the selected memristors
+
+		Parameters:
+			values: List[List[int]]
+			Details:
+				2D array of binary values '0bXY'
+					If X = '1', FORM R, otherwise do not change R state
+					If Y = '1', FORM Rb, otherwise do not change Rb state
+					If XY = '00', do not change the cell state
+				
+				[[col0, col1, ..., col7], # row 0
+				[col0, col1, ..., col7],  # row 1
+					...,
+				[col0, col1, ..., col7]]  # row 7
+		"""
+		#TODO: Control 2230G
+		self._mcd.set(*self.flatten_array(values)) # FORM has the same control signals than SET
+
+	def fill(self, values, otp=False):
 		"""
 		Fills in the array
 		
@@ -175,17 +245,40 @@ class Design3Driver:
 				[col0, col1, ..., col7],  # row 1
 					...,
 				[col0, col1, ..., col7]]  # row 7
+
+			otp: bool : Fill in OTP mode or not [False by default]
+			Details:
+				If otp = False, sets or resets all the memristors
+				If otp = True, forms only the memristors to set, leaves untouched to ones to reset
 		"""
 		if len(values) != 8 and len(values[0]) != 8:
 			raise ValueError("Expected 8x8 array")
-		
-		values = list(ft.reduce(
-				lambda reduced_rows, rows:
-					reduced_rows + list(map(self.ternary_to_repr, rows)),
-				values,
-				[],
-		))
-		self._mcd.fill(*values)
+
+		set_values, reset_values = [], []
+		for row in values:
+			set_value_col   = []
+			reset_value_col = []
+			for v in row:
+				v = {
+					 1: 0b01, #  1 = HRS-LRS = RST-SET
+					-1: 0b10, # -1 = LRS-HRS = SET-RST
+					 0: 0b00, #  0 = HRS-HRS = RST-RST
+				}[v]
+
+				set_val   = v ^ 0b00
+				reset_val = v ^ 0b11
+
+				set_value_col.append(set_val)
+				reset_value_col.append(reset_val)
+
+			set_values.append(set_value_col)
+			reset_values.append(reset_value_col)
+
+		if otp: # If we are in OTP mode, we form the memristors to SET and leave to other unformed
+			self.form(set_values)
+		else: # Otherwise, we set to memristors to SET and RESET to others
+			self.set(set_values)
+			self.reset(reset_values)
 
 	def sense(self, measure_pulses=False):
 		"""
