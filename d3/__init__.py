@@ -120,9 +120,10 @@ class Design3Driver:
 		self._kdriver.set_channel_voltage(self.k2230g_chans['VDD'], 1.2)
 
 		self._last_wgfu_config = -1 # Initially, no WGFMU Configuration
-		self.discharge_time    = None
-		self.precharge_time    = None
-		self.interval          = 20e-6
+		self.discharge_time = None
+		self.precharge_time = None
+		self.interval       = 20e-6
+		self.clk_len        = 15e-6 # Quite long length and interval to let the µc react to the clk pulse
 
 	##### µC-RELATED METHODS #####
 	# EMPTY
@@ -177,7 +178,7 @@ class Design3Driver:
 		clk.wave = B1530Lib.Pulse(
 			voltage    = 3.3,
 			edges      = 1e-8,
-			length     = 15e-6, # Quite long pulse to let the µc react to the clk pulse
+			length     = self.clk_len,
 			wait_begin = cwl.wave.get_total_duration(),
 			wait_end   = 0,
 		)
@@ -257,7 +258,7 @@ class Design3Driver:
 		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDC'], 3.5) # SL voltage
 		self._mcd.set(*self.flatten_array(values))
 
-	def reset(self, values):
+	def reset(self, values: List[List[int]]):
 		"""
 		Resets the selected memristors
 
@@ -278,7 +279,7 @@ class Design3Driver:
 		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDC'], 4.5) # BL voltage
 		self._mcd.reset(*self.flatten_array(values))
 
-	def form(self, values):
+	def form(self, values: List[List[int]]):
 		"""
 		Forms the selected memristors
 
@@ -297,7 +298,7 @@ class Design3Driver:
 		"""
 		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDR'], 3) # WL voltage
 		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDC'], 3) # SL voltage
-		self._mcd.set(*self.flatten_array(values)) # FORM has the same control signals than SET
+		self._mcd.set(*self.flatten_array(values)) # FORM has the same control signals as SET
 
 	def fill(self, values, otp=False):
 		"""
