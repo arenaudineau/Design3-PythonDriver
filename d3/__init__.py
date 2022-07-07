@@ -57,15 +57,28 @@ class Design3Driver:
 			b1530_addr: optionnal, the visa addr to search for the B1530.
 			k2230g_addr: optionnal, the visa addr to search for the Keithley 2230G.
 		"""
-		self._mcd = mcd.MCDriver(uc_pid)
+		self._mcd     = None
+		self._b1530   = None
+		self._kdriver = None
+
+		try:
+			self._mcd = mcd.MCDriver(uc_pid)
+		except Exception as e:
+			del self
+			raise e
 
 		try:
 			self._b1530 = B1530Lib.B1530(addr=b1530_addr)
 		except Exception as e:
-			self._mcd.ser.close()
+			del self
 			raise e
 
-		self._kdriver = kdriver.Keith2230G(adress=k2230g_addr, silence_initial_measurements=True)
+		try:
+			self._kdriver = kdriver.Keith2230G(adress=k2230g_addr, silence_initial_measurements=True)
+		except Exception as e:
+			del self
+			raise e
+		
 		self.k2230g_chans = {
 			'VDD':  'CH1',
 			'VDDC': 'CH2',
@@ -75,15 +88,22 @@ class Design3Driver:
 		self.reset_state()
 
 	def __del__(self):
-		# Disable all three channels of the DC Power Supply
-		self._kdriver.set_channel_output(self.k2230g_chans['VDD'],  0)
-		self._kdriver.set_channel_output(self.k2230g_chans['VDDC'], 0)
-		self._kdriver.set_channel_output(self.k2230g_chans['VDDR'], 0)
-		
-		self._kdriver.close()
+		if self._kdriver is not None:
+			# Disable all three channels of the DC Power Supply
+			self._kdriver.set_channel_output(self.k2230g_chans['VDD'],  0)
+			self._kdriver.set_channel_output(self.k2230g_chans['VDDC'], 0)
+			self._kdriver.set_channel_output(self.k2230g_chans['VDDR'], 0)
+			
+			self._kdriver.close()
+			self._kdriver = None
 
-		del self._b1530
-		del self._mcd
+		if self._b1530 is not None:
+			self._b1530.__del__() # Because somehow del self._b1530 doesnt work
+			self._b1530 = None
+		
+		if self._mcd is not None:
+			self._mcd.__del__() # Because somehow del self._b1530 doesnt work
+			self._mcd = None
 
 	def reset_state(self):
 		"""
