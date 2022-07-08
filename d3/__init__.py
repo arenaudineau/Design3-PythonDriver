@@ -7,6 +7,7 @@ import numpy as np
 
 import functools as ft
 from typing import List
+from time import sleep
 
 ###############################
 # WGFMU Configuration Constants
@@ -39,7 +40,7 @@ class Design3Driver:
 			Stores the last operation performed, not to reconfigure everything if it is the same (see 'WGFMU Configuration Constants')
 	"""
 
-	K2230G_DEFAULT_ADDR = "GPIB::1::INSTR"
+	K2230G_DEFAULT_ADDR = "GPIB::6::INSTR"
 
 	def __init__(self, uc_pid = mcd.MCDriver.DEFAULT_PID, b1530_addr = B1530Lib.B1530.DEFAULT_ADDR, k2230g_addr = K2230G_DEFAULT_ADDR):
 		"""
@@ -89,21 +90,18 @@ class Design3Driver:
 
 	def __del__(self):
 		if self._kdriver is not None:
-			# Disable all three channels of the DC Power Supply
-			self._kdriver.set_channel_output(self.k2230g_chans['VDD'],  0)
-			self._kdriver.set_channel_output(self.k2230g_chans['VDDC'], 0)
-			self._kdriver.set_channel_output(self.k2230g_chans['VDDR'], 0)
-			
-			self._kdriver.close()
 			self._kdriver = None
+			print("Closed Keith2230G")
 
 		if self._b1530 is not None:
 			self._b1530.__del__() # Because somehow del self._b1530 doesnt work
 			self._b1530 = None
+			print("Closed B1530")
 		
 		if self._mcd is not None:
 			self._mcd.__del__() # Because somehow del self._b1530 doesnt work
 			self._mcd = None
+			print("Closed MCDriver")
 
 	def reset_state(self):
 		"""
@@ -117,8 +115,7 @@ class Design3Driver:
 		self._kdriver.set_channel_output(self.k2230g_chans['VDDC'], 1)
 		self._kdriver.set_channel_output(self.k2230g_chans['VDDR'], 1)
 
-		self._kdriver.set_channel_voltage(self.k2230g_chans['VDD'], 1.2)
-
+		self.set_voltages({'VDD': 1.2, 'VDDR': 0, 'VDDC': 0})
 		self._last_wgfu_config = -1 # Initially, no WGFMU Configuration
 		self.discharge_time = None
 		self.precharge_time = None
@@ -211,6 +208,33 @@ class Design3Driver:
 
 		self._b1530.configure()
 
+	##### Keith2230G-RELATED METHODS #####
+	def set_voltages(self, voltages, tolerance=0.05, wait_time=0.3):
+		"""
+		Sets the voltages provided and waits for the values to be settled.
+
+		Parameters:
+			voltages: Dict specifying the channel name as a key and the wanted voltage as a value
+			tolerance: float : The tolerated voltage difference
+			wait_time: float : Wait time between each actual voltage queries 
+		"""
+		for chan_name, voltage in voltages.items():
+			chan = self.k2230g_chans[chan_name]
+			self._kdriver.set_channel_voltage(chan, voltage)
+
+		def voltage_settled():
+			settled = True
+			for chan_name, voltage in voltages.items():
+				chan = self.k2230g_chans[chan_name]
+				actual_voltage = float(self._kdriver.get_channel_voltage(chan))
+				settled &= (abs(actual_voltage - voltage) < tolerance)
+
+			return settled
+
+		while not voltage_settled():
+			sleep(wait_time)
+		sleep(2*wait_time) # Let the voltage stabilize
+
 	##### HIGH-LEVEL ARRAY MANIPULATION METHODS #####
 	@staticmethod
 	def ternary_to_repr(t: int):
@@ -254,8 +278,7 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 		"""
-		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDR'], 3)   # WL voltage
-		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDC'], 3.5) # SL voltage
+		self.set_voltages({'VDDR': 3, 'VDDC': 3.5})
 		self._mcd.set(*self.flatten_array(values))
 
 	def reset(self, values: List[List[int]]):
@@ -275,8 +298,7 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 		"""
-		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDR'], 5)   # WL voltage
-		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDC'], 4.5) # BL voltage
+		self.set_voltages({'VDDR': 5, 'VDDC': 4.5})
 		self._mcd.reset(*self.flatten_array(values))
 
 	def form(self, values: List[List[int]]):
@@ -296,8 +318,7 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 		"""
-		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDR'], 3) # WL voltage
-		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDC'], 3) # SL voltage
+		self.set_voltages({'VDDR': 3, 'VDDC': 3})
 		self._mcd.set(*self.flatten_array(values)) # FORM has the same control signals as SET
 
 	def fill(self, values, otp=False):
@@ -363,8 +384,7 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 		"""
-		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDR'], 2.5) # WL voltage
-		self._kdriver.set_channel_voltage(self.k2230g_chans['VDDC'], 1.2) # SL/BL voltage
+		self.set_voltages({'VDDR': 2.5, 'VDDC': 1.2})
 
 		self.configure_wgfmu_default(measure_pulses)
 		self._b1530.exec(wait_until_completed = False) # Does not wait for completion because we want to run µc sense at the same time
