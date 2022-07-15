@@ -55,8 +55,8 @@ class Design3Driver:
 
 		Arguments:
 			pid: optional, the pid to search for.
-			b1530_addr: optionnal, the visa addr to search for the B1530.
-			k2230g_addr: optionnal, the visa addr to search for the Keithley 2230G.
+			b1530_addr: optionnal, the visa addr to search for the B1530. If None, do not use the B1530
+			k2230g_addr: optionnal, the visa addr to search for the Keithley 2230G. If None, do not use K2230G
 		"""
 		self._mcd     = None
 		self._b1530   = None
@@ -383,7 +383,7 @@ class Design3Driver:
 			self.set(set_values)
 			self.reset(reset_values)
 
-	def sense(self, measure_pulses=False):
+	def sense(self, measure_pulses=False, VDD=1.2, VDDR=2.5, VDDC=1.2):
 		"""
 		Reads out the array
 
@@ -400,13 +400,13 @@ class Design3Driver:
 				[col0, col1, ..., col7]]  # row 7
 		"""
 		if self._kdriver is not None and self._b1530 is not None:
-			self.set_voltages({'VDDR': 2.5, 'VDDC': 1.2})
+			self.set_voltages({'VDD': VDD, 'VDDR': VDDR, 'VDDC': VDDC})
 
 			self.configure_wgfmu_default(measure_pulses)
 			self._b1530.exec(wait_until_completed = False) # Does not wait for completion because we want to run µc sense at the same time
 			
 			values = self._mcd.sense() # Get array of bytes
-			
+
 		else:
 			values = self._mcd.sense_uc()
 			values = np.array([b for b in values], dtype=int) # Convert array of bytes into array of integers
