@@ -57,6 +57,7 @@ class CMD(IntEnum):
 	SET        = en_auto()
 	RESET      = en_auto()
 	SENSE      = en_auto()
+	SENSE_UC   = en_auto()
 	CLK        = en_auto()
 	CLK2       = en_auto()
 	ACK_MODE   = en_auto()
