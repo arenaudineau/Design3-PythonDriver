@@ -62,23 +62,26 @@ class Design3Driver:
 		self._b1530   = None
 		self._kdriver = None
 
-		try:
-			self._mcd = mcd.MCDriver(uc_pid)
-		except Exception as e:
-			del self
-			raise e
+		if uc_pid is not None:
+			try:
+				self._mcd = mcd.MCDriver(uc_pid)
+			except Exception as e:
+				del self
+				raise e
 
-		try:
-			self._b1530 = B1530Lib.B1530(addr=b1530_addr)
-		except Exception as e:
-			del self
-			raise e
+		if b1530_addr is not None:
+			try:
+				self._b1530 = B1530Lib.B1530(addr=b1530_addr)
+			except Exception as e:
+				del self
+				raise e
 
-		try:
-			self._kdriver = kdriver.Keith2230G(adress=k2230g_addr, silence_initial_measurements=True)
-		except Exception as e:
-			del self
-			raise e
+		if k2230g_addr is not None:
+			try:
+				self._kdriver = kdriver.Keith2230G(adress=k2230g_addr, silence_initial_measurements=True)
+			except Exception as e:
+				del self
+				raise e
 		
 		self.k2230g_chans = {
 			'VDD':  'CH1',
@@ -111,11 +114,13 @@ class Design3Driver:
 		self._mcd.ack_mode(mcd.ACK_ALL) # Enable ACK for every procedure commands
 
 		# Enable all three channels of the DC Power Supply
-		self._kdriver.set_channel_output(self.k2230g_chans['VDD'],  1)
-		self._kdriver.set_channel_output(self.k2230g_chans['VDDC'], 1)
-		self._kdriver.set_channel_output(self.k2230g_chans['VDDR'], 1)
+		if self._kdriver is not None:
+			self._kdriver.set_channel_output(self.k2230g_chans['VDD'],  1)
+			self._kdriver.set_channel_output(self.k2230g_chans['VDDC'], 1)
+			self._kdriver.set_channel_output(self.k2230g_chans['VDDR'], 1)
 
-		self.set_voltages({'VDD': 1.2, 'VDDR': 0, 'VDDC': 0})
+			self.set_voltages({'VDD': 1.2, 'VDDR': 0, 'VDDC': 0})
+		
 		self._last_wgfu_config = -1 # Initially, no WGFMU Configuration
 		self.discharge_time = None
 		self.precharge_time = None
@@ -261,7 +266,7 @@ class Design3Driver:
 					[],
 			))
 	
-	def set(self, values: List[List[int]]):
+	def set(self, values: List[List[int]], VDDR = 3, VDDC = 3.5):
 		"""
 		Sets the selected memristors
 
@@ -277,11 +282,15 @@ class Design3Driver:
 				[col0, col1, ..., col7],  # row 1
 					...,
 				[col0, col1, ..., col7]]  # row 7
+
+			VDDR: float, 3 by default
+			VDDC: float, 3.5 by default
 		"""
-		self.set_voltages({'VDDR': 3, 'VDDC': 3.5})
+		if self._kdriver is not None:
+			self.set_voltages({'VDDR': VDDR, 'VDDC': VDDC})
 		self._mcd.set(*self.flatten_array(values))
 
-	def reset(self, values: List[List[int]]):
+	def reset(self, values: List[List[int]], VDDR = 5, VDDC = 4.5):
 		"""
 		Resets the selected memristors
 
@@ -297,11 +306,14 @@ class Design3Driver:
 				[col0, col1, ..., col7],  # row 1
 					...,
 				[col0, col1, ..., col7]]  # row 7
+
+			VDDR: float, 5 by default
+			VDDC: float, 4.5 by default
 		"""
-		self.set_voltages({'VDDR': 5, 'VDDC': 4.5})
+		self.set_voltages({'VDDR': VDDR, 'VDDC': VDDC})
 		self._mcd.reset(*self.flatten_array(values))
 
-	def form(self, values: List[List[int]]):
+	def form(self, values: List[List[int]], VDDR = 3, VDDC = 3):
 		"""
 		Forms the selected memristors
 
@@ -317,8 +329,11 @@ class Design3Driver:
 				[col0, col1, ..., col7],  # row 1
 					...,
 				[col0, col1, ..., col7]]  # row 7
+
+			VDDR: float, 3 by default
+			VDDC: float, 3 by default
 		"""
-		self.set_voltages({'VDDR': 3, 'VDDC': 3})
+		self.set_voltages({'VDDR': VDDR, 'VDDC': VDDC})
 		self._mcd.set(*self.flatten_array(values)) # FORM has the same control signals as SET
 
 	def fill(self, values, otp=False):
@@ -384,13 +399,17 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 		"""
-		self.set_voltages({'VDDR': 2.5, 'VDDC': 1.2})
+		if self._kdriver is not None and self._b1530 is not None:
+			self.set_voltages({'VDDR': 2.5, 'VDDC': 1.2})
 
-		self.configure_wgfmu_default(measure_pulses)
-		self._b1530.exec(wait_until_completed = False) # Does not wait for completion because we want to run µc sense at the same time
-		
-		values = self._mcd.sense()                        # Get array of bytes
-		values = np.array([b for b in values], dtype=int) # Convert array of bytes into array of integers
-		values = values.reshape(8, 8)                     # Shape 1D array of size 64 to 8x8 2D array
+			self.configure_wgfmu_default(measure_pulses)
+			self._b1530.exec(wait_until_completed = False) # Does not wait for completion because we want to run µc sense at the same time
+			
+			values = self._mcd.sense() # Get array of bytes
+			
+		else:
+			values = self._mcd.sense_uc()
+			values = np.array([b for b in values], dtype=int) # Convert array of bytes into array of integers
+			values = values.reshape(8, 8)                     # Shape 1D array of size 64 to 8x8 2D array
 		
 		return values
