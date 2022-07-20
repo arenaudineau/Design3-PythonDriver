@@ -26,5 +26,5 @@ You can know use `d3` in any directory of the computer and any changes in the so
 If `PYTHONPATH` exists, edit it and append the path to B1530driver files ;  
 Otherwise, create it.
 
-# Wiki
-Here is a complete [wiki](../../wiki) on how to use this library.
+# Getting Started
+See notebook [here](https://gist.github.com/arenaudineau/42e6704368cb00af8836932d38dd419e).
