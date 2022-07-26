@@ -310,7 +310,8 @@ class Design3Driver:
 			VDDR: float, 5 by default
 			VDDC: float, 4.5 by default
 		"""
-		self.set_voltages({'VDDR': VDDR, 'VDDC': VDDC})
+		if self._kdriver is not None:
+			self.set_voltages({'VDDR': VDDR, 'VDDC': VDDC})
 		self._mcd.reset(*self.flatten_array(values))
 
 	def form(self, values: List[List[int]], VDDR = 3, VDDC = 3):
