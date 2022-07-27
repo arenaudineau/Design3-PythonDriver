@@ -401,9 +401,10 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 		"""
-		if (self._kdriver is not None and self._b1530 is not None) or sense_uc:
+		if self._kdriver is not None:
 			self.set_voltages({'VDD': VDD, 'VDDR': VDDR, 'VDDC': VDDC})
-
+		
+		if self._b1530 is not None and not sense_uc:
 			self.configure_wgfmu_default(measure_pulses)
 			self._b1530.exec(wait_until_completed = False) # Does not wait for completion because we want to run µc sense at the same time
 			
