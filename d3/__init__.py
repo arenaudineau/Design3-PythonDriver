@@ -119,7 +119,7 @@ class Design3Driver:
 			self._kdriver.set_channel_output(self.k2230g_chans['VDDC'], 1)
 			self._kdriver.set_channel_output(self.k2230g_chans['VDDR'], 1)
 
-			self.set_voltages({'VDD': 1.2, 'VDDR': 0, 'VDDC': 0})
+			self.set_voltages({'VDD': 1.2, 'VDDR': 2.5, 'VDDC': 1.2})
 		
 		self._last_wgfu_config = -1 # Initially, no WGFMU Configuration
 		self.discharge_time = None
