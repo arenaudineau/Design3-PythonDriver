@@ -139,9 +139,9 @@ class Design3Driver:
 			measure: bool : Measure the signals generated
 		"""
 		# Reconfigure only if the configuration has changed
-		if self._last_wgfu_config == (self.precharge_time, self.discharge_time, self.interval):
+		if self._last_wgfu_config == (self.precharge_time, self.discharge_time, self.interval, self.clk_len):
 			return
-		self._last_wgfu_config = (self.precharge_time, self.discharge_time, self.interval)
+		self._last_wgfu_config = (self.precharge_time, self.discharge_time, self.interval, self.clk_len)
 
 		if self.discharge_time is None or self.precharge_time is None:
 			raise ValueError("discharge_time or precharge_time not set")
@@ -159,20 +159,20 @@ class Design3Driver:
 		clk.name    = 'clk'
 
 		bit_in.wave = B1530Lib.Pulse(
-			voltage  = 1,
+			voltage  = 3.3,
 			interval = 1e-7,
 			edges    = 1e-8,
 			length   = 1.2 * (self.precharge_time + self.discharge_time) 
 		)
 
 		cwl.wave = bit_in.wave.centered_on(
-			voltage  = 1,
+			voltage  = 3.3,
 			length   = self.precharge_time + self.discharge_time,
 			wait_end = 0,
 		)
 
 		csl.wave = cwl.wave.copy(
-			voltage  = 1,
+			voltage  = 3.3,
 			length   = self.precharge_time,
 			wait_end = self.discharge_time,
 		)
@@ -199,7 +199,7 @@ class Design3Driver:
 
 		for c in chan.values():
 			c.wave \
-				.repeat(8 * 8 - 1) \
+				.repeat(8 - 1) \
 				.prepend_wait_begin(wait_time = 0.05) # Let the µc init
 
 		if measure:
