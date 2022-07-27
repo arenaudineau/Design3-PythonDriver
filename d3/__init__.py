@@ -384,12 +384,13 @@ class Design3Driver:
 			self.set(set_values)
 			self.reset(reset_values)
 
-	def sense(self, measure_pulses=False, VDD=1.2, VDDR=2.5, VDDC=1.2):
+	def sense(self, measure_pulses=False, sense_uc=False, VDD=1.2, VDDR=2.5, VDDC=1.2):
 		"""
 		Reads out the array
 
 		Parameters:
 			measure_pulses: bool : Make a B1530 measurement of the pulses applied [False by default]
+			sense_uc: bool : Sense using the microcontroller only [False by default]
 
 		Returns:
 			values: List[List[int]]
@@ -400,7 +401,7 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 		"""
-		if self._kdriver is not None and self._b1530 is not None:
+		if (self._kdriver is not None and self._b1530 is not None) or sense_uc:
 			self.set_voltages({'VDD': VDD, 'VDDR': VDDR, 'VDDC': VDDC})
 
 			self.configure_wgfmu_default(measure_pulses)
@@ -409,8 +410,9 @@ class Design3Driver:
 			values = self._mcd.sense() # Get array of bytes
 
 		else:
-			values = self._mcd.sense_uc()
-			values = np.array([b for b in values], dtype=int) # Convert array of bytes into array of integers
-			values = values.reshape(8, 8)                     # Shape 1D array of size 64 to 8x8 2D array
+			values = self._mcd.sense_uc() # Get array of bytes
+		
+		values = np.array([b for b in values], dtype=int) # Convert array of bytes into array of integers
+		values = values.reshape(8, 8)                     # Shape 1D array of size 64 to 8x8 2D array
 		
 		return values
