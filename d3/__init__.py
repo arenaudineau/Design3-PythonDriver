@@ -170,8 +170,6 @@ class Design3Driver:
 			length   = self.precharge_time + self.discharge_time,
 			wait_end = 0,
 		)
-		print(bit_in.wave.wait_begin)
-		print(cwl.wave.wait_begin)
 
 		csl.wave = cwl.wave.copy(
 			voltage  = 3.3,
@@ -224,9 +222,9 @@ class Design3Driver:
 				)
 
 		bit_in.wave.force_fastiv = True
-		cwl.wave.force_fastiv = True
-		csl.wave.force_fastiv = True
-		clk.wave.force_fastiv = True
+		cwl.wave.force_fastiv    = True
+		csl.wave.force_fastiv    = True
+		clk.wave.force_fastiv    = True
 		self._b1530.configure()
 
 	##### Keith2230G-RELATED METHODS #####
