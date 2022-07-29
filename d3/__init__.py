@@ -162,7 +162,7 @@ class Design3Driver:
 			voltage  = 3.3,
 			interval = 1e-7,
 			edges    = 1e-8,
-			length   = 1.2 * (self.precharge_time + self.discharge_time) 
+			length   = 1.4 * (self.precharge_time + self.discharge_time) # !! 1.2
 		)
 
 		cwl.wave = bit_in.wave.centered_on(
@@ -170,6 +170,8 @@ class Design3Driver:
 			length   = self.precharge_time + self.discharge_time,
 			wait_end = 0,
 		)
+		print(bit_in.wave.wait_begin)
+		print(cwl.wave.wait_begin)
 
 		csl.wave = cwl.wave.copy(
 			voltage  = 3.3,
@@ -181,7 +183,7 @@ class Design3Driver:
 			voltage    = 3.3,
 			edges      = 1e-8,
 			length     = self.clk_len,
-			wait_begin = cwl.wave.get_total_duration(),
+			wait_begin = cwl.wave.get_total_duration(),# - cwl.wave.trail,
 			wait_end   = 0,
 		)
 		
@@ -190,6 +192,16 @@ class Design3Driver:
 		cwl.wave.append_wait_end(new_total_duration = clk.wave.get_total_duration() + interval)
 		csl.wave.append_wait_end(new_total_duration = clk.wave.get_total_duration() + interval)
 		clk.wave.append_wait_end(new_total_duration = clk.wave.get_total_duration() + interval)
+
+		# See https://github.com/arenaudineau/B1530Lib/wiki
+		#bit_in = B1530Lib.Waveform(
+		#	[
+		#		[0],
+		#		[],
+		#		[],
+		#		[],
+		#	]
+		#)
 
 		cwl.wave.repeat(1)
 		csl.wave.repeat(1)
@@ -211,6 +223,10 @@ class Design3Driver:
 					ignore_settling=False,
 				)
 
+		bit_in.wave.force_fastiv = True
+		cwl.wave.force_fastiv = True
+		csl.wave.force_fastiv = True
+		clk.wave.force_fastiv = True
 		self._b1530.configure()
 
 	##### Keith2230G-RELATED METHODS #####
