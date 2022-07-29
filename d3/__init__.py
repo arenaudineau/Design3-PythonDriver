@@ -119,7 +119,7 @@ class Design3Driver:
 			self._kdriver.set_channel_output(self.k2230g_chans['VDDC'], 1)
 			self._kdriver.set_channel_output(self.k2230g_chans['VDDR'], 1)
 
-			self.set_voltages({'VDD': 1.2, 'VDDR': 2.5, 'VDDC': 1.2})
+			self.set_voltages({'VDD': 0.0, 'VDDR': 0.0, 'VDDC': 0.0})
 		
 		self._last_wgfu_config = -1 # Initially, no WGFMU Configuration
 		self.discharge_time = None
@@ -314,7 +314,7 @@ class Design3Driver:
 			self.set_voltages({'VDDR': VDDR, 'VDDC': VDDC})
 		self._mcd.reset(*self.flatten_array(values))
 
-	def form(self, values: List[List[int]], VDDR = 3, VDDC = 3):
+	def form(self, values: List[List[int]], VDD = 1.2, VDDR = 3, VDDC = 3):
 		"""
 		Forms the selected memristors
 
@@ -334,7 +334,7 @@ class Design3Driver:
 			VDDR: float, 3 by default
 			VDDC: float, 3 by default
 		"""
-		self.set_voltages({'VDDR': VDDR, 'VDDC': VDDC})
+		self.set_voltages({'VDD': VDD, 'VDDR': VDDR, 'VDDC': VDDC})
 		self._mcd.set(*self.flatten_array(values)) # FORM has the same control signals as SET
 
 	def fill(self, values, otp=False):
