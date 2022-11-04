@@ -275,12 +275,12 @@ class Design3Driver:
 		return \
 			list(ft.reduce(
 					lambda reduced_rows, rows:
-						reduced_rows + list(map(m, rows)),
+						reduced_rows + [ m(row) for row in rows ],
 					arr,
 					[],
 			))
 	
-	def set(self, values: List[List[int]], VDDR = 3, VDDC = 3.5):
+	def set(self, values: List[List[int]], VDD = 1.2, VDDR = 3, VDDC = 3.5):
 		"""
 		Sets the selected memristors
 
@@ -301,10 +301,10 @@ class Design3Driver:
 			VDDC: float, 3.5 by default
 		"""
 		if self._kdriver is not None:
-			self.set_voltages({'VDDR': VDDR, 'VDDC': VDDC})
+			self.set_voltages({'VDD': VDD, 'VDDR': VDDR, 'VDDC': VDDC})
 		self._mcd.set(*self.flatten_array(values))
 
-	def reset(self, values: List[List[int]], VDDR = 5, VDDC = 4.5):
+	def reset(self, values: List[List[int]], VDD = 1.2, VDDR = 5, VDDC = 4.5):
 		"""
 		Resets the selected memristors
 
@@ -325,7 +325,7 @@ class Design3Driver:
 			VDDC: float, 4.5 by default
 		"""
 		if self._kdriver is not None:
-			self.set_voltages({'VDDR': VDDR, 'VDDC': VDDC})
+			self.set_voltages({'VDD': VDD, 'VDDR': VDDR, 'VDDC': VDDC})
 		self._mcd.reset(*self.flatten_array(values))
 
 	def form(self, values: List[List[int]], VDD = 1.2, VDDR = 3, VDDC = 3):
