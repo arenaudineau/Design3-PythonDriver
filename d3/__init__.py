@@ -39,6 +39,12 @@ class Design3Driver:
 
 		_last_wgfu_config: int
 			Stores the last operation performed, not to reconfigure everything if it is the same (see 'WGFMU Configuration Constants')
+	
+		k2230g_chans: dict(str, str)
+			Associates voltage sources (VDD, VDDC, VDDR) to power supply channel (CH1..3)
+	
+		voltages: dict(str, dict(str, str))
+			Stores default voltage values ('VDD', 'VDDC', 'VDDR') for the operations 'SET', 'RESET', 'FORM', 'SENSE'
 	"""
 
 	K2230G_DEFAULT_ADDR = "GPIB::6::INSTR"
@@ -313,15 +319,9 @@ class Design3Driver:
 			arr: List[List[int]] : The 2D array to flatten
 			m: func : The function to map to individual values [identity by default]
 		"""
-		return [ ]
-		return \
-			list(ft.reduce(
-					lambda reduced_rows, rows:
-						reduced_rows + [ m(row) for row in rows ],
-					arr,
-					[],
-			))
+		return [ m(x) for xs in arr for x in xs ]
 	
+	##### DESIGN3 MANIPULATION METHODS #####
 	def set(self, values: List[List[int]], VDD:float = None, VDDC:float = None, VDDR:float = None):
 		"""
 		Sets the selected memristors
