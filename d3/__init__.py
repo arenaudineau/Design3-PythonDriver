@@ -1,5 +1,6 @@
 from d3 import mcd
 from d3.mcd import State #, add other usefull import here
+from d3.method_decorator import method
 import B1530Lib
 import lab.keith2230GDriver as kdriver
 
@@ -84,9 +85,32 @@ class Design3Driver:
 				raise e
 		
 		self.k2230g_chans = {
-			'VDD':  'CH1',
+			'VDDR': 'CH1',
 			'VDDC': 'CH2',
-			'VDDR': 'CH3',
+			'VDD':  'CH3',
+		}
+
+		self.voltages = {
+			'SET': {
+				'VDD':  1.2,
+				'VDDC': 3.5,
+				'VDDR': 3.0,
+			},
+			'RESET': {
+				'VDD':  1.2,
+				'VDDC': 4.5,
+				'VDDR': 5.0,
+			},
+			'FORM': {
+				'VDD':  1.2,
+				'VDDC': 3.0,
+				'VDDR': 3.0,
+			},
+			'SENSE': {
+				'VDD':  1.2,
+				'VDDC': 1.2,
+				'VDDR': 2.5,
+			}
 		}
 		
 		self.reset_state()
@@ -191,16 +215,6 @@ class Design3Driver:
 		csl.wave.append_wait_end(new_total_duration = clk.wave.get_total_duration() + interval)
 		clk.wave.append_wait_end(new_total_duration = clk.wave.get_total_duration() + interval)
 
-		# See https://github.com/arenaudineau/B1530Lib/wiki
-		#bit_in = B1530Lib.Waveform(
-		#	[
-		#		[0],
-		#		[],
-		#		[],
-		#		[],
-		#	]
-		#)
-
 		cwl.wave.repeat(1)
 		csl.wave.repeat(1)
 		clk.wave.repeat(1)
@@ -237,13 +251,19 @@ class Design3Driver:
 			tolerance: float : The tolerated voltage difference
 			wait_time: float : Wait time between each actual voltage queries 
 		"""
+		updated_voltages = dict()
 		for chan_name, voltage in voltages.items():
 			chan = self.k2230g_chans[chan_name]
-			self._kdriver.set_channel_voltage(chan, voltage)
+			if voltage != self._kdriver.get_channel_voltage(chan):
+				self._kdriver.set_channel_voltage(chan, voltage)
+				updated_voltages[chan] = voltage
+
+		if len(updated_voltages) == 0:
+			return
 
 		def voltage_settled():
 			settled = True
-			for chan_name, voltage in voltages.items():
+			for chan_name, voltage in updated_voltages.items():
 				chan = self.k2230g_chans[chan_name]
 				actual_voltage = float(self._kdriver.get_channel_voltage(chan))
 				settled &= (abs(actual_voltage - voltage) < tolerance)
@@ -253,6 +273,27 @@ class Design3Driver:
 		while not voltage_settled():
 			sleep(wait_time)
 		sleep(2*wait_time) # Let the voltage stabilize
+
+	def set_voltages_or_default(self, operation, VDD: float = None, VDDC: float = None, VDDR: float = None, tolerance=0.05, wait_time=0.3):
+		"""
+		Set the voltages provided in parameters or the default voltage associated with the 'operation'
+
+		Parameters:
+			operation: str : The operation that will be executed ('SET', 'RESET', 'FORM' or 'SENSE'), which is associated with the voltages from self.voltages
+			VDD: float : The VDD voltage to apply, or the default VDD for the operation if None [None, by default]
+			VDDC: float : The VDDC voltage to apply, or the default VDDC for the operation if None [None, by default]
+			VDDR: float : The VDDR voltage to apply, or the default VDDR for the operation if None [None, by default]
+			tolerance, wait_time : See 'set_voltages'
+		"""
+		default_voltages = self.voltages[operation]
+		self.set_voltages\
+			(	voltages = { 'VDD':  VDD  or default_voltages['VDD']
+				           , 'VDDC': VDDC or default_voltages['VDDC']
+				           , 'VDDR': VDDR or default_voltages['VDDR']
+				           }
+			, tolerance = tolerance
+			,	wait_time = wait_time
+			)
 
 	##### HIGH-LEVEL ARRAY MANIPULATION METHODS #####
 	@staticmethod
@@ -264,7 +305,7 @@ class Design3Driver:
 		}[t]
 
 	@staticmethod
-	def flatten_array(arr: List[List[int]], m = lambda x: x) -> List[int]:
+	def concat(arr: List[List[int]], m = lambda x: x) -> List[int]:
 		"""
 		Returns a 1D flatten array from a 2D one, with optionally a function to map.
 
@@ -272,6 +313,7 @@ class Design3Driver:
 			arr: List[List[int]] : The 2D array to flatten
 			m: func : The function to map to individual values [identity by default]
 		"""
+		return [ ]
 		return \
 			list(ft.reduce(
 					lambda reduced_rows, rows:
@@ -280,7 +322,7 @@ class Design3Driver:
 					[],
 			))
 	
-	def set(self, values: List[List[int]], VDD = 1.2, VDDR = 3, VDDC = 3.5):
+	def set(self, values: List[List[int]], VDD:float = None, VDDC:float = None, VDDR:float = None):
 		"""
 		Sets the selected memristors
 
@@ -297,14 +339,16 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 
-			VDDR: float, 3 by default
-			VDDC: float, 3.5 by default
+			VDD:  float, self.voltages['SET']['VDD']  by default
+			VDDC: float, self.voltages['SET']['VDDC'] by default
+			VDDR: float, self.voltages['SET']['VDDR'] by default
 		"""
 		if self._kdriver is not None:
-			self.set_voltages({'VDD': VDD, 'VDDR': VDDR, 'VDDC': VDDC})
-		self._mcd.set(*self.flatten_array(values))
+			self.set_voltages_or_default('SET', VDD, VDDC, VDDR)
+		
+		self._mcd.set(*self.concat(values))
 
-	def reset(self, values: List[List[int]], VDD = 1.2, VDDR = 5, VDDC = 4.5):
+	def reset(self, values: List[List[int]], VDD:float = None, VDDC:float = None, VDDR:float = None):
 		"""
 		Resets the selected memristors
 
@@ -321,14 +365,16 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 
-			VDDR: float, 5 by default
-			VDDC: float, 4.5 by default
+			VDD:  float, self.voltages['SET']['VDD']  by default
+			VDDC: float, self.voltages['SET']['VDDC'] by default
+			VDDR: float, self.voltages['SET']['VDDR'] by default
 		"""
 		if self._kdriver is not None:
-			self.set_voltages({'VDD': VDD, 'VDDR': VDDR, 'VDDC': VDDC})
-		self._mcd.reset(*self.flatten_array(values))
+			self.set_voltages_or_default('RESET', VDD, VDDC, VDDR)
+		
+		self._mcd.reset(*self.concat(values))
 
-	def form(self, values: List[List[int]], VDD = 1.2, VDDR = 3, VDDC = 3):
+	def form(self, values: List[List[int]], VDD:float = None, VDDC:float = None, VDDR:float = None):
 		"""
 		Forms the selected memristors
 
@@ -345,11 +391,14 @@ class Design3Driver:
 					...,
 				[col0, col1, ..., col7]]  # row 7
 
-			VDDR: float, 3 by default
-			VDDC: float, 3 by default
+			VDD:  float, self.voltages['SET']['VDD']  by default
+			VDDC: float, self.voltages['SET']['VDDC'] by default
+			VDDR: float, self.voltages['SET']['VDDR'] by default
 		"""
-		self.set_voltages({'VDD': VDD, 'VDDR': VDDR, 'VDDC': VDDC})
-		self._mcd.set(*self.flatten_array(values)) # FORM has the same control signals as SET
+		if self._kdriver is not None:
+			self.set_voltages_or_default('FORM')
+
+		self._mcd.set(*self.concat(values)) # FORM has the same control signals as SET
 
 	def fill(self, values, otp=False):
 		"""
@@ -368,6 +417,9 @@ class Design3Driver:
 			Details:
 				If otp = False, sets or resets all the memristors
 				If otp = True, forms only the memristors to set, leaves untouched to ones to reset
+
+		Details:
+			This method calls 'set', 'reset' and/or 'form'. The applied voltages are defined by self.voltages
 		"""
 		if len(values) != 8 and len(values[0]) != 8:
 			raise ValueError("Expected 8x8 array")
@@ -398,13 +450,16 @@ class Design3Driver:
 			self.set(set_values)
 			self.reset(reset_values)
 
-	def sense(self, measure_pulses=False, sense_uc=False, VDD=1.2, VDDR=2.5, VDDC=1.2):
+	def sense(self, measure_pulses=False, sense_uc=False, VDD:float = None, VDDC:float = None, VDDR:float = None):
 		"""
 		Reads out the array
 
 		Parameters:
 			measure_pulses: bool : Make a B1530 measurement of the pulses applied [False by default]
 			sense_uc: bool : Sense using the microcontroller only [False by default]
+			VDD:  float, self.voltages['SET']['VDD']  by default
+			VDDC: float, self.voltages['SET']['VDDC'] by default
+			VDDR: float, self.voltages['SET']['VDDR'] by default
 
 		Returns:
 			values: List[List[int]]
@@ -416,7 +471,7 @@ class Design3Driver:
 				[col0, col1, ..., col7]]  # row 7
 		"""
 		if self._kdriver is not None:
-			self.set_voltages({'VDD': VDD, 'VDDR': VDDR, 'VDDC': VDDC})
+			self.set_voltages_or_default('SENSE', VDD, VDDC, VDDR)
 		
 		if self._b1530 is not None and not sense_uc:
 			self.configure_wgfmu_default(measure_pulses)
